@@ -7,6 +7,8 @@ library(sf)
 
 # reading/downloading data ------------------------------------------------
 # test a species
+source("R/china_data.R")
+
 gbif_data <- geodata::sp_occurrence(genus = "Diaphorina",
                                     species = "citri")
 
@@ -27,8 +29,14 @@ leaflet() %>%
     stroke = FALSE,
     color = "red",
     label = ~species,
-    fillOpacity = 0.4
-  )
+    fillOpacity = 0.4) %>%
+  addCircleMarkers(
+    data = china_data,
+    radius = 4,
+    stroke = FALSE,
+    color = "blue",
+    label = ~species,
+    fillOpacity = 0.4)
 
 
 
