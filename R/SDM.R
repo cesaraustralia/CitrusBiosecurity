@@ -17,14 +17,14 @@ sp_coords <- gbif_data %>%
                 country, species, genus, family) %>%
   drop_na(lon, lat)
 
-sp_points <- st_as_sf(sp_coords, coords = c("lon", "lat"))
+sp_pts <- st_as_sf(sp_coords, coords = c("lon", "lat"))
 # bg_mask <- st_read("data/background_mask.gpkg")
 
 leaflet() %>%
   addTiles() %>%
   # addPolygons(opacity = 0.4, color = NA) %>%
   addCircleMarkers(
-    data = sp_points,
+    data = sp_pts,
     radius = 4,
     stroke = FALSE,
     color = "red",
@@ -38,6 +38,30 @@ leaflet() %>%
     label = ~species,
     fillOpacity = 0.4)
 
+
+# combine both datasets
+sp_points <- sp_coords %>% 
+  filter(status == "PRESENT") %>% 
+  dplyr::select(species, long = lon, lat) %>% 
+  bind_rows(china_data) %>% 
+  st_as_sf(coords = c("long", "lat"))
+
+leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers(
+    data = sp_points,
+    radius = 4,
+    stroke = FALSE,
+    color = "red",
+    label = ~species,
+    fillOpacity = 0.4)
+
+# environmental data ------------------------------------------------------
+r <- rast("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/CHELSA_bio1_1981-2010_V.2.1.tif")
+plot(r)
+plot(sp_points, add = TRUE, col = 'black')
+
+cellFromXY(r, st_coordinates(sp_points))
 
 
 # modelling ---------------------------------------------------------------
