@@ -31,20 +31,28 @@ leaflet() %>%
     label = ~species,
     fillOpacity = 0.4) %>%
   addCircleMarkers(
-    data = china_data,
+    data = data_wang,
     radius = 4,
     stroke = FALSE,
     color = "blue",
     label = ~species,
+    fillOpacity = 0.4) %>%
+  addCircleMarkers(
+    data = data_adidoo,
+    radius = 4,
+    stroke = FALSE,
+    color = "green",
+    label = ~species,
     fillOpacity = 0.4)
 
 
-# combine both datasets
+# combine the datasets
 sp_points <- sp_coords %>% 
   filter(status == "PRESENT") %>% 
   dplyr::select(species, long = lon, lat) %>% 
-  bind_rows(china_data) %>% 
-  st_as_sf(coords = c("long", "lat"))
+  bind_rows(data_wang) %>% 
+  bind_rows(data_adidoo) %>% 
+  st_as_sf(coords = c("long", "lat"), crs = 4326)
 
 leaflet() %>%
   addTiles() %>%
@@ -61,9 +69,57 @@ r <- rast("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/CHELSA_bio1_1981-201
 plot(r)
 plot(sp_points, add = TRUE, col = 'black')
 
-cellFromXY(r, st_coordinates(sp_points))
+
+# remove duplicates
+dup <- cellFromXY(r, st_coordinates(sp_points)) %>% 
+  duplicated()
+occ <- sp_points[!dup, ]
+
+plot(r)
+plot(occ, add = TRUE, col = 'red')
+mapview::mapview(occ)
+
+elev <- rast("C:/Users/61423/Climate_data/Elevation_30s_worldclim/wc2.1_30s_elev.tif") %>% 
+  setNames("elevation")
+plot(elev)
+
+plot(c(r, elev))
+
+extract(elev, terra::vect(occ)) %>% 
+  as.data.frame() %>% 
+  mutate(high = elevation <= 1000) %>% 
+  pull(high) %>% 
+  sum(na.rm = TRUE)
+
+occ %>% 
+  mutate(elev = terra::extract(elev, terra::vect(.), df = TRUE)$elevation) %>% 
+  st_cast("POINT") %>% 
+  mutate(high = elev > 1500) %>% 
+  mapview::mapview(zcol = "high", label = "elev")
 
 
+
+elev[elev > 1500] <- NA 
+plot(elev)
+r[r < 0] <- NA
+plot(r)
+r <- terra::extend(r, rr)
+r
+plot(c(r, rr))
+
+bgmask <- r + rr
+bgmask <- terra::app(bgmask, function(x) x > -10000)
+plot(bgmask)
+
+# get bioclim data
+flist <- list.files("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/",
+                    pattern = ".tif$",
+                    full.names = TRUE)
+bios <- rast(flist)
+
+
+
+#
 # modelling ---------------------------------------------------------------
 # # BRT ---------------------------------------------------------------------
 # weighting
