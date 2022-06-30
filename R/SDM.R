@@ -14,7 +14,7 @@ gbif_data <- geodata::sp_occurrence(genus = "Diaphorina",
 
 sp_coords <- gbif_data %>%
   dplyr::select(lon, lat, status = occurrenceStatus,
-                country, species, genus, family) %>%
+                country, species) %>%
   drop_na(lon, lat)
 
 sp_pts <- st_as_sf(sp_coords, coords = c("lon", "lat"))
@@ -64,53 +64,97 @@ leaflet() %>%
     label = ~species,
     fillOpacity = 0.4)
 
-# environmental data ------------------------------------------------------
-r <- rast("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/CHELSA_bio1_1981-2010_V.2.1.tif")
-plot(r)
-plot(sp_points, add = TRUE, col = 'black')
 
-
+# data cleaning -----------------------------------------------------------
+bio1 <- rast("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/CHELSA_bio1_1981-2010_V.2.1.tif")
 # remove duplicates
 dup <- cellFromXY(r, st_coordinates(sp_points)) %>% 
   duplicated()
 occ <- sp_points[!dup, ]
 
-plot(r)
+plot(bio1)
 plot(occ, add = TRUE, col = 'red')
-mapview::mapview(occ)
+# mapview::mapview(occ)
 
 elev <- rast("C:/Users/61423/Climate_data/Elevation_30s_worldclim/wc2.1_30s_elev.tif") %>% 
   setNames("elevation")
 plot(elev)
 
-plot(c(r, elev))
+plot(c(bio1, elev))
 
 extract(elev, terra::vect(occ)) %>% 
   as.data.frame() %>% 
-  mutate(high = elevation <= 1000) %>% 
+  mutate(high = elevation <= 1500) %>% 
   pull(high) %>% 
   sum(na.rm = TRUE)
 
-occ %>% 
+occ <- occ %>% 
   mutate(elev = terra::extract(elev, terra::vect(.), df = TRUE)$elevation) %>% 
   st_cast("POINT") %>% 
-  mutate(high = elev > 1500) %>% 
-  mapview::mapview(zcol = "high", label = "elev")
+  filter(elev < 1500)
+occ
 
 
+# get world map to filter data
+worldmap <- geodata::world(path = "data/")
+cabi_loc <- sf::read_sf("data/CABI_diaphorina_citri.shp")
+cabi_counties <- worldmap[vect(cabi_loc), ]
+plot(cabi_counties)
+plot(cabi_loc$geometry, add = TRUE, col = "red", pch = 16)
 
+# filter the records based on CABI countries
+occ_clean <- occ[st_as_sf(cabi_counties), ]
+occ_clean
+mapview::mapview(occ_clean, zcol = "elev", label = "elev")
+
+
+# make a mask with elevation and annual temperature
 elev[elev > 1500] <- NA 
 plot(elev)
-r[r < 0] <- NA
-plot(r)
-r <- terra::extend(r, rr)
-r
-plot(c(r, rr))
+bio1[bio1 < 0] <- NA
+plot(bio1)
+bio1 <- terra::extend(bio1, elev)
+bio1
+plot(c(bio1, elev))
 
-bgmask <- r + rr
+bgmask <- bio1 + elev
 bgmask <- terra::app(bgmask, function(x) x > -10000)
-plot(bgmask)
+# terra::writeRaster(bgmask, "data/mask.tif")
 
+plot(bgmask)
+plot(cabi_counties, add = TRUE)
+plot(st_geometry(occ_clean), add = TRUE, col = "red", pch = 16, cex = 0.5)
+
+
+robproj <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m no_defs"
+mycols <- terrain.colors(30, rev = TRUE)
+
+ggplot() +
+  geom_sf(data = st_as_sf(worldmap), fill = NA, inherit.aes = FALSE) +
+  geom_sf(data = st_as_sf(cabi_counties), fill = NA, col = "blue", inherit.aes = FALSE) +
+  geom_sf(data = occ_clean, col = "red", alpha = 0.5, inherit.aes = FALSE) +
+  coord_sf(crs = robproj) +
+  theme_minimal() +
+  labs(x = NULL, y = NULL)
+
+
+# library(rasterVis)
+
+# elev_rob <- terra::project(elev, robproj)
+
+# gplot(elev_rob) +
+#   geom_tile(aes(fill = value)) +
+#   scale_fill_gradientn(colours = mycols, na.value = NA) +
+#   # scale_fill_viridis_c(option = "G", direction = -1, na.value = NA) +
+#   geom_sf(data = st_as_sf(worldmap), fill = NA, inherit.aes = FALSE) +
+#   geom_sf(data = st_as_sf(cabi_counties), fill = NA, col = "blue", inherit.aes = FALSE) +
+#   geom_sf(data = occ_clean, col = "red", alpha = 0.5, inherit.aes = FALSE) +
+#   coord_sf(crs = robproj) +
+#   theme_minimal() +
+#   labs(x = NULL, y = NULL)
+
+
+# environmental data ------------------------------------------------------
 # get bioclim data
 flist <- list.files("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/",
                     pattern = ".tif$",
