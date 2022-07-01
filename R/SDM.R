@@ -18,32 +18,6 @@ sp_coords <- gbif_data %>%
   drop_na(lon, lat)
 
 sp_pts <- st_as_sf(sp_coords, coords = c("lon", "lat"))
-# bg_mask <- st_read("data/background_mask.gpkg")
-
-leaflet() %>%
-  addTiles() %>%
-  # addPolygons(opacity = 0.4, color = NA) %>%
-  addCircleMarkers(
-    data = sp_pts,
-    radius = 4,
-    stroke = FALSE,
-    color = "red",
-    label = ~species,
-    fillOpacity = 0.4) %>%
-  addCircleMarkers(
-    data = data_wang,
-    radius = 4,
-    stroke = FALSE,
-    color = "blue",
-    label = ~species,
-    fillOpacity = 0.4) %>%
-  addCircleMarkers(
-    data = data_adidoo,
-    radius = 4,
-    stroke = FALSE,
-    color = "green",
-    label = ~species,
-    fillOpacity = 0.4)
 
 
 # combine the datasets
@@ -67,8 +41,10 @@ leaflet() %>%
 
 # data cleaning -----------------------------------------------------------
 bio1 <- rast("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/CHELSA_bio1_1981-2010_V.2.1.tif")
+# aggregate to 10km cells to remove close records
+dpmask <- terra::aggregate(bio1, fact = 10)
 # remove duplicates
-dup <- cellFromXY(r, st_coordinates(sp_points)) %>% 
+dup <- cellFromXY(dpmask, st_coordinates(sp_points)) %>% 
   duplicated()
 occ <- sp_points[!dup, ]
 
@@ -111,7 +87,7 @@ mapview::mapview(occ_clean, zcol = "elev", label = "elev")
 # make a mask with elevation and annual temperature
 elev[elev > 1500] <- NA 
 plot(elev)
-bio1[bio1 < 0] <- NA
+bio1[bio1 <= 0] <- NA
 plot(bio1)
 bio1 <- terra::extend(bio1, elev)
 bio1
@@ -119,7 +95,8 @@ plot(c(bio1, elev))
 
 bgmask <- bio1 + elev
 bgmask <- terra::app(bgmask, function(x) x > -10000)
-# terra::writeRaster(bgmask, "data/mask.tif")
+bgmask <- terra::mask(bgmask, worldmap[!worldmap$GID_0 %in% c("AUS", "NZL")])
+# terra::writeRaster(bgmask, "data/mask.tif", overwrite = TRUE)
 
 plot(bgmask)
 plot(cabi_counties, add = TRUE)
@@ -156,16 +133,106 @@ ggplot() +
 
 # environmental data ------------------------------------------------------
 # get bioclim data
-flist <- list.files("C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/",
-                    pattern = ".tif$",
-                    full.names = TRUE)
-bios <- rast(flist)
+fdir <- "C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/"
+flist <- c(
+  "CHELSA_bio1_1981-2010_V.2.1.tif",
+  "CHELSA_bio2_1981-2010_V.2.1.tif",
+  "CHELSA_bio3_1981-2010_V.2.1.tif",
+  "CHELSA_bio4_1981-2010_V.2.1.tif",
+  "CHELSA_bio5_1981-2010_V.2.1.tif",
+  "CHELSA_bio6_1981-2010_V.2.1.tif",
+  "CHELSA_bio7_1981-2010_V.2.1.tif",
+  "CHELSA_bio8_1981-2010_V.2.1.tif",
+  "CHELSA_bio10_1981-2010_V.2.1.tif",
+  "CHELSA_bio11_1981-2010_V.2.1.tif",
+  "CHELSA_bio12_1981-2010_V.2.1.tif",
+  "CHELSA_bio14_1981-2010_V.2.1.tif",
+  "CHELSA_bio15_1981-2010_V.2.1.tif",
+  "CHELSA_bio17_1981-2010_V.2.1.tif",
+  "CHELSA_bio18_1981-2010_V.2.1.tif",
+  "CHELSA_cmi_mean_1981-2010_V.2.1.tif",
+  "CHELSA_gdd0_1981-2010_V.2.1.tif",
+  "CHELSA_gdd10_1981-2010_V.2.1.tif",
+  "CHELSA_gsl_1981-2010_V.2.1.tif",
+  "CHELSA_hurs_mean_1981-2010_V.2.1.tif",
+  "CHELSA_ngd0_1981-2010_V.2.1.tif",
+  "CHELSA_ngd10_1981-2010_V.2.1.tif",
+  "CHELSA_npp_1981-2010_V.2.1.tif",
+  "CHELSA_vpd_mean_1981-2010_V.2.1.tif"
+)
+
+bios <- rast(paste0(fdir, flist))
+names(bios) <- map_chr(names(bios), function(x) str_split(x, "_")[[1]][2])
+plot(bios)
+
+# read the mask file
+bgmask <- rast("data/mask.tif") %>% 
+  terra::crop(bios[[1]]) %>% 
+  setNames("mask")
+
+bgs <- terra::spatSample(x = bgmask,
+                         size = 25000,
+                         method = "random",
+                         xy = TRUE,
+                         values = FALSE,
+                         na.rm = TRUE)
+
+bio_pr <- terra::extract(bios, vect(occ_clean)) %>% 
+  as_tibble() %>% 
+  mutate(occ = 1) %>% 
+  dplyr::select(-ID)
+bio_bg <- terra::extract(bios, bgs) %>% 
+  as_tibble() %>% 
+  mutate(occ = 0)
+
+train_data <- bind_rows(bio_pr, bio_bg) %>% 
+  dplyr::relocate(occ) # get occ as first column
+
+covars <- c(
+  "bio1",
+  # "bio2",
+  # "bio3",
+  "bio4",
+  "bio5",
+  # "bio6",
+  # "bio7",
+  "bio8",
+  # "bio10",
+  # "bio11",
+  "bio12",
+  # "bio14",
+  # "bio15",
+  # "bio17",
+  "bio18",
+  # "cmi",
+  # "gdd0",
+  # "gdd10"
+  # "gsl",
+  # "npp",
+  "hurs"
+  # "vpd",
+  # "ngd0",
+  # "ngd10"
+)
+
+usdm::vifstep(x = as.data.frame(train_data[, covars]), th = 10)
+
+train_data[, covars] %>% 
+  # dplyr::select(-occ) %>% 
+  sample_n(5000) %>% 
+  PerformanceAnalytics::chart.Correlation(method = "pearson")
 
 
+training <- train_data[, c("occ", covars)] %>% 
+  as.data.frame()
+head(training)
 
 #
 # modelling ---------------------------------------------------------------
 # # BRT ---------------------------------------------------------------------
+library(dismo)
+library(gbm)
+
 # weighting
 prNum <- as.numeric(table(training$occ)["1"]) # number of presences
 bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
@@ -173,10 +240,10 @@ wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
 
 set.seed(32755)
 brt <- gbm.step(data = training,
-                gbm.x = which(names(training) %in% final_vars),
+                gbm.x = which(names(training) %in% covars),
                 gbm.y = which(names(training) == "occ"),
                 family = "bernoulli",
-                tree.complexity = ifelse(prNum < 50, 1, 5),
+                tree.complexity = 5,
                 learning.rate = 0.001,
                 bag.fraction = 0.75,
                 max.trees = 10000,
@@ -208,18 +275,22 @@ ggResponse(models = brt,
 
 dismo::gbm.interactions(brt)
 
+bios_agg <- terra::aggregate(bios[[covars]], fact = 5)
+bios_agg <- terra::mask(bios_agg, worldmap)
+plot(bios_agg)
+
 # predict on rasters
-brt_pred <-  raster::predict(object = raster::stack(r[[final_vars]]),
-                             model = brt,
-                             n.trees = brt$gbm.call$best.trees,
-                             progress = "text",
-                             type = "response")
+brt_pred <- raster::predict(object = raster::stack(bios_agg),
+                            model = brt,
+                            n.trees = brt$gbm.call$best.trees,
+                            progress = "text",
+                            type = "response")
 
 names(brt_pred) <- "BRT"
 plot(brt_pred, zlim = c(0,1))
-points(occ)
+points(st_coordinates(occ_clean))
 
-writeRaster(brt_pred, "Results/brt_current_225.tif", overwrite = TRUE)
+writeRaster(brt_pred, "results/pred_brt.tif", overwrite = TRUE)
 
 
 # # Lasso -------------------------------------------------------------------
@@ -404,6 +475,4 @@ par(mfrow=c(1,1))
 
 
 
-
-
-
+# the end -----------------------------------------------------------------
