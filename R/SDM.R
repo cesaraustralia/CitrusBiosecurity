@@ -5,7 +5,7 @@ library(terra)
 library(geodata)
 library(rasterVis)
 library(sf)
-library(factoextra)
+# library(factoextra)
 
 
 # reading/downloading data ------------------------------------------------
@@ -81,8 +81,6 @@ mapview::mapview(occ_clean, zcol = "elev", label = "elev")
 
 # st_write(occ_clean, "data/occ_clean.gpkg")
 
-
-
 # # make a mask with elevation and annual temperature
 # elev[elev > 1500] <- NA
 # plot(elev)
@@ -101,7 +99,6 @@ mapview::mapview(occ_clean, zcol = "elev", label = "elev")
 # plot(rast("mask.tif"))
 
 
-
 robproj <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m no_defs"
 mycols <- terrain.colors(30, rev = TRUE)
 
@@ -113,22 +110,7 @@ ggplot() +
   theme_minimal() +
   labs(x = NULL, y = NULL)
 
-
-# library(rasterVis)
-
-# elev_rob <- terra::project(elev, robproj)
-
-# gplot(elev_rob) +
-#   geom_tile(aes(fill = value)) +
-#   scale_fill_gradientn(colours = mycols, na.value = NA) +
-#   # scale_fill_viridis_c(option = "G", direction = -1, na.value = NA) +
-#   geom_sf(data = st_as_sf(worldmap), fill = NA, inherit.aes = FALSE) +
-#   geom_sf(data = st_as_sf(cabi_counties), fill = NA, col = "blue", inherit.aes = FALSE) +
-#   geom_sf(data = occ_clean, col = "red", alpha = 0.5, inherit.aes = FALSE) +
-#   coord_sf(crs = robproj) +
-#   theme_minimal() +
-#   labs(x = NULL, y = NULL)
-
+#
 # environmental data ------------------------------------------------------
 # list of potential covars
 flist <- c(
@@ -162,150 +144,141 @@ bios <- rast(paste0(fdir, flist))
 names(bios) <- map_chr(names(bios), function(x) str_split(x, "_")[[1]][2])
 plot(bios[[1:4]])
 
-# take random points for PCA
-pca_samples <- terra::spatSample(x = bios,
-                                 size = 1e4,
-                                 method = "random",
-                                 xy = TRUE,
-                                 values = FALSE,
-                                 na.rm = TRUE)
-head(pca_samples)
+# # take random points for PCA
+# pca_samples <- terra::spatSample(x = bios,
+#                                  size = 5e4,
+#                                  method = "random",
+#                                  xy = TRUE,
+#                                  values = FALSE,
+#                                  na.rm = TRUE)
+# head(pca_samples)
+# 
+# pca_model <- terra::extract(bios, pca_samples) %>%
+#   as.data.frame() %>%
+#   prcomp(scale = TRUE, center = TRUE)
+# 
+# saveRDS(pca_model, "data/pca_model.rds")
+pca_model <- readRDS("data/pca_model.rds")
 
-pca_model <- terra::extract(bios, pca_samples) %>% 
-  as.data.frame() %>% 
-  prcomp(scale = TRUE, center = TRUE)
 
-
-fviz_eig(pca_model)
-fviz_pca_var(pca_model,
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
+factoextra::fviz_eig(pca_model)
+factoextra::fviz_pca_var(
+  pca_model,
+  col.var = "contrib", # Color by contributions to the PC
+  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+  repel = TRUE     # Avoid text overlapping
 )
-# bios_pca <- predict(bios, pca_model)
-
-
 
 
 # read a raster mask for the region
-bgmask <- terra::rast("data/mask.tif") %>%
-  terra::crop(bios[[1]]) %>%
-  setNames("mask")
+bgmask <- terra::rast("data/mask.tif")
 
-kde_mask <- terra::rast("data/kde_mask.tif") %>% 
-  # terra::app(function(x) sqrt(x + 0.01)) %>% 
-  terra::mask(bgmask) %>%
-  setNames("kde")
-# plot(raster::raster(kde_mask), zlim = c(0,0.6))
+# kde_mask <- terra::rast("data/kde_mask.tif") %>% 
+#   # terra::app(function(x) sqrt(x + 0.01)) %>% 
+#   terra::mask(bgmask) %>%
+#   terra::aggregate(fact = 5) %>%  # reduce the size to fit in memory
+#   setNames("kde")
+# 
+# # generate 10k random samples from the KDE raster file
+# bgs <- terra::spatSample(x = kde_mask,
+#                          size = 1e4,
+#                          method = "weights",
+#                          # method = "random",
+#                          xy = TRUE,
+#                          values = FALSE,
+#                          na.rm = TRUE)
 
-# reduce the size to fit in memory
-kde_mask <- terra::aggregate(kde_mask, fact = 5)
-
-# generate 10k random samples from the KDE raster file
-bgs <- terra::spatSample(x = kde_mask,
-                         size = 1e4,
-                         method = "weights",
-                         # method = "random",
-                         xy = TRUE,
-                         values = FALSE,
-                         na.rm = TRUE)
-
-rasterVis::gplot(kde_mask) +
-  geom_tile(aes(fill = value)) +
-  scale_fill_gradientn(colours = terrain.colors(30, rev = TRUE), na.value = NA) +
-  geom_point(data = as.data.frame(bgs), aes(x = x, y = y), alpha = 0.02) +
-  theme_void() +
-  coord_equal()
+# rasterVis::gplot(kde_mask) +
+#   geom_tile(aes(fill = value)) +
+#   scale_fill_gradientn(colours = terrain.colors(30, rev = TRUE), na.value = NA) +
+#   geom_point(data = as.data.frame(bgs), aes(x = x, y = y), alpha = 0.02) +
+#   theme_void() +
+#   coord_equal()
 
 
+# saveRDS(bgs, "data/bgs.rds")
+bgs <- readRDS("data/bgs.rds")
 
-
-# rasters <- bios_pca
-rasters <- bios
-
-bio_pr <- terra::extract(rasters, vect(occ_clean)) %>% 
+# extract the climatic data
+bio_pr <- terra::extract(bios, vect(occ_clean)) %>% 
   as_tibble() %>% 
   mutate(occ = 1) %>% 
   dplyr::select(-ID)
-bio_bg <- terra::extract(rasters, bgs[,c("x","y")]) %>% 
+bio_bg <- terra::extract(bios, bgs[,c("x","y")]) %>% 
   as_tibble() %>% 
   mutate(occ = 0)
 
 train_data <- bind_rows(bio_pr, bio_bg) %>% 
-  dplyr::relocate(occ) # get occ as first column
+  dplyr::relocate(occ) %>%  # get occ as first column
+  dplyr::select(-ID)
+names(train_data)
 
-covars <- c(
-  # "bio1",
-  # "bio2",
-  "bio3",
-  # "bio4",
-  "bio5",
-  # "bio6",
-  # "bio7",
-  "bio8",
-  # "bio10",
-  # "bio11",
-  # "bio12",
-  # "bio14",
-  "bio15",
-  # "bio17",
-  # "bio18",
-  # "cmi",
-  # "gdd0",
-  # "gdd10"
-  # "gsl"
-  # "npp"
-  "hurs"
-  # "vpd"
-  # "ngd0"
-  # "ngd10"
-)
+# covars <- c(
+#   # "bio1",
+#   # "bio2",
+#   "bio3",
+#   # "bio4",
+#   "bio5",
+#   # "bio6",
+#   # "bio7",
+#   "bio8",
+#   # "bio10",
+#   # "bio11",
+#   # "bio12",
+#   # "bio14",
+#   "bio15",
+#   # "bio17",
+#   # "bio18",
+#   # "cmi",
+#   # "gdd0",
+#   # "gdd10"
+#   # "gsl"
+#   # "npp"
+#   "hurs"
+#   # "vpd"
+#   # "ngd0"
+#   # "ngd10"
+# )
+# 
+# usdm::vifstep(x = as.data.frame(train_data[, covars]), th = 10)
+# 
+# train_data[, covars] %>%
+#   # dplyr::select(-occ) %>%
+#   sample_n(5000) %>%
+#   PerformanceAnalytics::chart.Correlation(method = "pearson")
 
-usdm::vifstep(x = as.data.frame(train_data[, covars]), th = 10)
+# # covars <- paste0("pc", 1:5)
+# 
+# training <- train_data[, c("occ", covars)] %>% 
+#   # mutate(
+#   #   # bio18 = log(bio18 + 1),
+#   #   # bio14 = log(bio14 + 1),
+#   #   bio12 = log(bio12 + 1)
+#   # ) %>%
+#   as.data.frame()
+# head(training)
+# 
+# training %>%
+#   dplyr::select(-occ) %>%
+#   usdm::vifstep(th = 5)
+# 
+# training %>%
+#   dplyr::select(-occ) %>%
+#   sample_n(5000) %>%
+#   PerformanceAnalytics::chart.Correlation(method = "pearson")
 
-train_data[, covars] %>%
-  # dplyr::select(-occ) %>%
-  sample_n(5000) %>%
-  PerformanceAnalytics::chart.Correlation(method = "pearson")
-
-# covars <- paste0("pc", 1:5)
-
-training <- train_data[, c("occ", covars)] %>% 
-  # mutate(
-  #   # bio18 = log(bio18 + 1),
-  #   # bio14 = log(bio14 + 1),
-  #   bio12 = log(bio12 + 1)
-  # ) %>%
-  as.data.frame()
-head(training)
-
-training %>%
-  dplyr::select(-occ) %>%
-  usdm::vifstep(th = 5)
-
-training %>%
-  dplyr::select(-occ) %>%
-  sample_n(5000) %>%
-  PerformanceAnalytics::chart.Correlation(method = "pearson")
-
-
-
-
-covars <- paste0("PC", 1:10)
+pcs <- seq_len(11)[-c(5,6,8)]
+covars <- paste0("PC", pcs)
+covars
 
 training <- predict(pca_model, train_data[,-1]) %>% 
   as.data.frame() %>% 
-  dplyr::select(1:10) %>% 
+  dplyr::select(all_of(covars)) %>% 
   mutate(occ = train_data$occ) %>% 
   relocate(occ) %>% 
   drop_na()
 head(training)
 table(training$occ)
-
-training %>%
-  dplyr::select(-occ) %>%
-  sample_n(5000) %>%
-  PerformanceAnalytics::chart.Correlation(method = "pearson")
 
 
 #
@@ -319,7 +292,6 @@ prNum <- as.numeric(table(training$occ)["1"]) # number of presences
 bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
 wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
 
-set.seed(32755)
 brt <- gbm.step(data = training,
                 gbm.x = which(!names(training) %in% "occ"),
                 gbm.y = 1,
@@ -333,9 +305,7 @@ brt <- gbm.step(data = training,
                 site.weights = wt,
                 silent = FALSE)
 
-dismo::gbm.interactions(brt)$rank.list
-
-
+# dismo::gbm.interactions(brt)$rank.list
 
 # plot all three interaction levels
 varimp <- summary(brt)
@@ -353,7 +323,6 @@ ggplot(aes(y = rel.inf, x = reorder(var, rel.inf), fill = rel.inf),
 
 #
 # # Lasso -------------------------------------------------------------------
-# loading the library
 library(glmnet)
 library(myspatial)
 
@@ -380,7 +349,6 @@ plot(lasso_cv)
 
 #
 # # GAM ---------------------------------------------------------------------
-# loading the packages
 library(mgcv)
 
 # calculating the case weights (equal weights)
@@ -389,36 +357,25 @@ prNum <- as.numeric(table(training$occ)["1"]) # number of presences
 bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
 wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
 
-form <- occ ~ 
-  s(bio3, bs  = "tp", k = 5) +
-  s(bio5, bs  = "tp", k = 5) +
-  s(bio8, bs  = "tp", k = 5) +
-  # s(bio12, bs  = "tp", k = 5) +
-  s(bio15, bs  = "tp", k = 5) +
-  s(hurs, bs  = "tp", k = 5)
+form <- paste("occ ~", 
+  paste(paste0("s(", covars, ", bs  = 'tp', k = ", 5, ")"), collapse = " + ")
+)
 
-tmp <- Sys.time()
-set.seed(32639)
 gm <- mgcv::gam(formula = as.formula(form),
                 data = training,
                 family = binomial(link = "logit"),
                 # family = binomial(link = "cloglog"),
                 weights = wt,
                 method = "REML")
-Sys.time() - tmp
-summary(gm)
 
 # check the appropriateness of Ks
-gam.check(gm)
+# gam.check(gm)
 plot(gm, pages = 1, rug = TRUE, shade = TRUE)
 
 #
 # # Maxent ------------------------------------------------------------------
-# load the package
 library(dismo)
 
-tmp <- Sys.time()
-# fit a maxent model with the tuned parameters
 maxmod <- dismo::maxent(x = training[, covars],
                         p = training$occ,
                         removeDuplicates = FALSE,
@@ -429,88 +386,27 @@ maxmod <- dismo::maxent(x = training[, covars],
                                  # "noproduct", "nohinge", # LQ
                                  # "noproduct", # LQH
                                  "betamultiplier=2"))
-Sys.time() - tmp
+
+
+predictors_au <- raster::stack(pca_au)[[covars]]
+# plot(pca_au)
+
+pred_au5k_max <- raster::predict(
+  object = predictors_au,
+  model = maxmod,
+  progress = "text",
+  type = c("cloglog")
+)
+names(pred_au5k_max) <- "Maxent"
+plot(pred_au5k_max, zlim = c(0,1))
 
 
 #
 # RF - ranger -------------------------------------------------------------
-# function for tuning the parameters of shallow model
-tune_ranger <- function(data, 
-                        y = "occ", # name of presence-background column
-                        k = 5, # number of cross-validation folds
-                        max.depth = 2:5, # this can be a vector of numbers
-                        splitrule = c("gini", "extratrees", "hellinger"), # only allowed options
-                        num.trees = 1000, # this can be a vector of numbers
-                        mtry = NULL, # this can be a vector of numbers; NULL = default 
-                        threads = 4){ # number of CPU cores
-  require(ranger)
-  # splitrule <- match.arg(splitrule)
-  names(data)[which(names(data) == y)] <- "po"
-  data$po <- as.factor(data$po)
-  if(is.null(mtry)){
-    mtry <- floor(sqrt(ncol(data) - 1))
-  }
-  grid <- expand.grid(max.depth = max.depth, 
-                      splitrule = splitrule,
-                      num.trees = num.trees,
-                      mtry = mtry,
-                      stringsAsFactors = FALSE)
-  # create balanced CV folds
-  folds <- caret::createFolds(y = as.factor(data$po), k = k)
-  evalmodel <- data.frame(depth = rep(NA, nrow(grid)), split = NA)
-  iteration <- nrow(grid)
-  # pb <- progress::progress_bar$new(format = "Progress [:bar] :percent in :elapsed",
-  #                                  total = iteration, clear = FALSE, width = 75)
-  for(i in seq_along(grid[,1])){
-    modauc <- c()
-    for(k in seq_along(folds)){
-      trainSet <- unlist(folds[-k])
-      testSet <- unlist(folds[k])
-      prNum <- as.numeric(table(data[trainSet, ]$po)["1"]) # number of presences
-      bgNum <- as.numeric(table(data[trainSet, ]$po)["0"]) # number of backgrounds
-      casewts <- ifelse(data[trainSet, ]$po == 1, 1, prNum / bgNum)
-      mod <- ranger::ranger(formula = po ~ .,
-                            data = data[trainSet, ], 
-                            probability = TRUE,
-                            num.trees = grid$num.trees[i],
-                            splitrule = grid$splitrule[i],
-                            max.depth = grid$max.depth[i],
-                            mtry = grid$mtry[i],
-                            sample.fraction = prNum / bgNum,
-                            case.weights = casewts,
-                            num.threads = threads,
-                            replace = TRUE)
-      pred <- predict(mod, data[testSet, ], type = "response")$predictions[,"1"]
-      modauc[k] <- precrec::auc(precrec::evalmod(scores = pred, 
-                                                 labels = data$po[testSet]))[1,4]
-    }
-    evalmodel$depth[i] <- grid$max.depth[i]
-    evalmodel$split[i] <- grid$splitrule[i]
-    evalmodel$ntrees[i] <- grid$num.trees[i]
-    evalmodel$mtry[i] <- grid$mtry[i]
-    evalmodel$aucme[i] <- mean(modauc)
-    # evalmodel$aucse[i] <- sd(modauc) / sqrt(5)
-    # pb$tick()
-  }
-  bestparam <- which.max(evalmodel$aucme)
-  print(evalmodel[bestparam, ])
-  prNum <- as.numeric(table(data$po)["1"]) # number of presences
-  bgNum <- as.numeric(table(data$po)["0"]) # number of backgrounds
-  casewts <- ifelse(data$po == 1, 1, prNum / bgNum)
-  finalmod <- ranger::ranger(formula = po ~ .,
-                             data = data, 
-                             probability = TRUE,
-                             num.trees = evalmodel$ntrees[bestparam],
-                             splitrule = evalmodel$split[bestparam],
-                             max.depth = evalmodel$depth[bestparam],
-                             sample.fraction = prNum / bgNum,
-                             case.weights = casewts,
-                             num.threads = threads,
-                             replace = TRUE)
-  return(finalmod)
-}
+library(ranger)
 
-# fitting ranger-tuned model
+source("R/tune_ranger.R")
+
 rf_shallow_tuned <- tune_ranger(data = training,
                                 y = "occ",
                                 max.depth = 2:8,
@@ -520,61 +416,21 @@ rf_shallow_tuned <- tune_ranger(data = training,
 
 
 #
-# # Random Forest -----------------------------------------------------------
-# loading the package
-library(randomForest)
-
-# convert the response to factor for producing class relative likelihood
-training$occ <- as.factor(training$occ)
-
-prNum <- as.numeric(table(training$occ)["1"]) # number of presences
-# the sample size in each class; the same as presence number
-smpsize <- c("0" = prNum, "1" = prNum)
-
-tmp <- Sys.time()
-set.seed(32639)
-rf_downsample <- randomForest(formula = occ ~.,
-                              data = training,
-                              ntree = 1000,
-                              sampsize = smpsize,
-                              importance = TRUE,
-                              replace = TRUE)
-Sys.time() - tmp
-
-
-
-plot(rf_downsample, main = "RF down-sampled")
-
-importance(rf_downsample, scale = FALSE) %>% 
-  as.data.frame() %>% 
-  arrange(MeanDecreaseGini)
-
-
-rf_pred <- raster::predict(object = raster::stack(bios_au[[covars]]),
-                           model = rf_downsample,
-                           progress = "text",
-                           index = 2,
-                           type = "prob")
-names(rf_pred) <- "RF"
-plot(rf_pred, zlim = c(0,1))
-
-writeRaster(rf_pred, "Results/rf_current_225.tif", overwrite = TRUE)
-
-
 # # -------------------------------------------------------------------------
 # Global map --------------------------------------------------------------
 bios_globe <- terra::aggregate(bios, fact = 10) %>% 
   terra::mask(worldmap)
 plot(bios_globe)
 
-
-bios_globe$bio12 <- log(bios_globe$bio12)
-
+pca_globe <- predict(bios_globe, pca_model)
+plot(pca_globe)
+# plot(pca_globe[[17:nlyr(pca_globe)]])
+predictors_globe <- raster::stack(pca_globe)[[covars]]
 
 # predict on rasters
 tmp <- Sys.time()
 pred_glob_brt <- raster::predict(
-  object = raster::stack(bios_globe),
+  object = predictors_globe,
   model = brt,
   n.trees = brt$gbm.call$best.trees,
   progress = "text",
@@ -586,7 +442,7 @@ plot(pred_glob_brt, zlim = c(0,1))
 
 
 pred_glob_max <- raster::predict(
-  object = raster::stack(bios_globe[[covars]]),
+  object = predictors_globe,
   model = maxmod,
   progress = "text",
   type = c("cloglog")
@@ -597,7 +453,7 @@ plot(pred_glob_max, zlim = c(0,1))
 
 # predicting glment on rasters with myspatial package
 pred_glob_glm <- predict_glmnet_raster(
-  r = raster::stack(bios_globe[[covars]]),
+  r = predictors_globe,
   model = lasso_cv, # the lasso cv object
   quadraticObj = quad_obj, # make_quadratic object
   type = "response",
@@ -609,7 +465,7 @@ plot(pred_glob_glm, zlim = c(0,1))
 
 
 pred_glob_gam <- raster::predict(
-  object = raster::stack(bios_globe[[covars]]),
+  object = predictors_globe,
   model = gm,
   progress = "text",
   type = "response"
@@ -621,7 +477,7 @@ plot(pred_glob_gam, zlim = c(0,1))
 
 # predict to raster layers
 pred_glob_rf <- raster::predict(
-  object = raster::stack(bios_globe[[covars]]),
+  object = predictors_globe,
   model = rf_shallow_tuned,
   progress = "text",
   fun = function(model, ...) predict(model, ...)$predictions[,"1"]
@@ -639,11 +495,11 @@ all_pred_glob <- list(pred_glob_brt,
   lapply(function(x) raster::calc(x, function(y) scales::rescale(y, c(0,1)))) %>% 
   raster::stack() %>% 
   terra::rast()
-plot(all_pred_glob)
+plot(all_pred_glob, range = c(0,1))
 
 pred_glob_ens <- terra::app(all_pred_glob, fun = "mean")
 names(pred_glob_ens) <- "Ensemble"
-plot(pred_glob_ens)
+plot(pred_glob_ens, range = c(0,1))
 
 
 robproj <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m no_defs"
@@ -661,37 +517,33 @@ rasterVis::gplot(ens_glob_proj) +
   labs(x = NULL, y = NULL, fill = "Suitability")
 
 # Australian map ----------------------------------------------------------
-# aggregate to reduce prediction time and easy visualization
-# crop to Australia
+# aggregate and crop to Australia
 bios_au <- bios %>% 
   terra::crop(worldmap[worldmap$GID_0 == "AUS"]) %>% 
   terra::mask(worldmap[worldmap$GID_0 == "AUS"]) %>% 
   terra::aggregate(fact = 5)
 
-# bios_au$bio12 <- log(bios_au$bio12)
-# bios_au$bio14 <- log(bios_au$bio14)
-# bios_au$bio18 <- log(bios_au$bio18)
-plot(bios_au)
-
 
 # predictors_au <- bios_au
-predictors_au <- predict(bios_au, pca_model)
-
+pca_au <- predict(bios_au, pca_model)
+plot(pca_au)
+# plot(pca_au[[17:nlyr(pca_au)]])
+predictors_au <- raster::stack(pca_au)[[covars]]
 
 # predict on rasters
 pred_au5k_brt <- raster::predict(
-  object = raster::stack(predictors_au[[covars]]),
+  object = predictors_au,
   model = brt,
   n.trees = brt$gbm.call$best.trees,
   progress = "text",
   type = "response"
 )
 names(pred_au5k_brt) <- "BRT"
-plot(pred_au5k_brt, zlim = c(0,1))
+plot(rast(pred_au5k_brt), range = c(0,1), background = "blue")
 
 # predicting glment on rasters with myspatial package
 pred_au5k_glm <- predict_glmnet_raster(
-  r = raster::stack(predictors_au[[covars]]),
+  r = predictors_au,
   model = lasso_cv, # the lasso cv object
   quadraticObj = quad_obj, # make_quadratic object
   type = "response",
@@ -702,7 +554,7 @@ names(pred_au5k_glm) <- "GLM"
 plot(pred_au5k_glm, zlim = c(0,1))
 
 pred_au5k_gam <- raster::predict(
-  object = raster::stack(predictors_au[[covars]]),
+  object = predictors_au,
   model = gm,
   progress = "text",
   type = "response"
@@ -710,8 +562,10 @@ pred_au5k_gam <- raster::predict(
 names(pred_au5k_gam) <- "GAM"
 plot(pred_au5k_gam, zlim = c(0,1))
 
+
+
 pred_au5k_max <- raster::predict(
-  object = raster::stack(predictors_au[[covars]]),
+  object = predictors_au,
   model = maxmod,
   progress = "text",
   type = c("cloglog")
@@ -720,9 +574,10 @@ names(pred_au5k_max) <- "Maxent"
 plot(pred_au5k_max, zlim = c(0,1))
 
 
+
 # predict to raster layers
 pred_au5k_rf <- raster::predict(
-  object = raster::stack(predictors_au[[covars]]),
+  object = predictors_au,
   model = rf_shallow_tuned,
   progress = "text",
   fun = function(model, ...) predict(model, ...)$predictions[,"1"]
@@ -739,11 +594,11 @@ all_pred_au5k <- list(pred_au5k_brt,
   lapply(function(x) raster::calc(x, function(y) scales::rescale(y, c(0,1)))) %>% 
   raster::stack() %>% 
   terra::rast()
-plot(all_pred_au5k)
+plot(all_pred_au5k, range = c(0, 1))
 
 pred_au5k_ens <- terra::app(all_pred_au5k, fun = "mean")
 names(pred_au5k_ens) <- "Ensemble"
-plot(pred_au5k_ens)
+plot(pred_au5k_ens, range = c(0, 1))
 
 
 mycols <- terrain.colors(30, rev = TRUE)
@@ -754,7 +609,8 @@ rasterVis::gplot(ens_au_proj) +
   geom_tile(aes(fill = value)) +
   scale_fill_gradientn(colours = mycols, na.value = NA) +
   # scale_fill_viridis_c(option = "G", direction = -1, na.value = NA) +
-  geom_sf(data = st_as_sf(worldmap[worldmap$GID_0 == "AUS", ]), fill = NA, inherit.aes = FALSE) +
+  geom_sf(data = st_as_sf(worldmap[worldmap$GID_0 == "AUS", ]),
+          fill = NA, inherit.aes = FALSE) +
   # geom_sf(data = st_as_sf(cabi_counties), fill = NA, col = "blue", inherit.aes = FALSE) +
   scale_x_continuous(limits = c(-23e5, 22e5)) +
   scale_y_continuous(limits = c(-52e5, -1e6)) +
