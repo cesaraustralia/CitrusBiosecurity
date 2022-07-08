@@ -279,6 +279,7 @@ training <- predict(pca_model, train_data[,-1]) %>%
   drop_na()
 head(training)
 table(training$occ)
+names(training)
 
 
 #
@@ -389,6 +390,7 @@ maxmod <- dismo::maxent(x = training[, covars],
 
 
 predictors_au <- raster::stack(pca_au)[[covars]]
+names(predictors_au)
 # plot(pca_au)
 
 pred_au5k_max <- raster::predict(
@@ -414,6 +416,14 @@ rf_shallow_tuned <- tune_ranger(data = training,
                                 num.trees = c(1000),
                                 threads = 8)
 
+
+#
+# save model objects ------------------------------------------------------
+saveRDS(brt, "models/brt.rds")
+saveRDS(lasso_cv, "models/glm.rds")
+saveRDS(gm, "models/gam.rds")
+saveRDS(maxmod, "models/max.rds")
+saveRDS(rf_shallow_tuned, "models/rfs.rds")
 
 #
 # # -------------------------------------------------------------------------

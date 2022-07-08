@@ -1,4 +1,5 @@
 library(ranger)
+library(mgcv)
 library(glmnet)
 library(myspatial)
 library(dismo)
@@ -7,6 +8,7 @@ library(gbm)
 source("R/tune_ranger.R")
 
 
+# pcs <- seq_len(15)[-c(5,6,8)]
 pcs <- seq_len(11)[-c(5,6,8)]
 covars <- paste0("PC", pcs)
 covars
@@ -19,8 +21,13 @@ training <- predict(pca_model, train_data[,-1]) %>%
   drop_na()
 head(training)
 table(training$occ)
+covars
+
+
+
 
 # create balanced 5-fold
+set.seed(42)
 folds <- caret::createFolds(y = as.factor(training$occ), k = 5)
 
 
@@ -124,7 +131,6 @@ for(i in seq_len(5)){
   modauc[i] <- precrec::auc(precrec::evalmod(scores =predictions_ens, 
                                              labels = test_set$occ))[1,4]
   
-  
   # Calculate Boyce index
   pres_indx <- which(test_set$occ == 1)
   modboyce[i] <- ecospat::ecospat.boyce(fit = predictions_ens,
@@ -139,4 +145,19 @@ modboyce
 mean(modauc)
 mean(modboyce)
 
+# PCs-11
+# > modauc
+# [1] 0.7861459 0.8182557 0.8010683 0.7869186 0.7475951
+# > modboyce
+# [1] 0.958 0.975 0.977 0.971 0.940
+# > mean(modauc)
+# [1] 0.7879967
+# > mean(modboyce)
+# [1] 0.9642
+
+# PCs-15
+# > mean(modauc)
+# [1] 0.7994154
+# > mean(modboyce)
+# [1] 0.9674
 
