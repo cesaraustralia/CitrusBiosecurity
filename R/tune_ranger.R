@@ -6,7 +6,8 @@ tune_ranger <- function(data,
                         splitrule = c("gini", "extratrees", "hellinger"), # only allowed options
                         num.trees = 1000, # this can be a vector of numbers
                         mtry = NULL, # this can be a vector of numbers; NULL = default 
-                        threads = 4){ # number of CPU cores
+                        threads = 4, # number of CPU cores
+                        progress = TRUE){ # show progress bar
   require(ranger)
   # splitrule <- match.arg(splitrule)
   names(data)[which(names(data) == y)] <- "po"
@@ -23,8 +24,10 @@ tune_ranger <- function(data,
   folds <- caret::createFolds(y = as.factor(data$po), k = k)
   evalmodel <- data.frame(depth = rep(NA, nrow(grid)), split = NA)
   iteration <- nrow(grid)
-  pb <- progress::progress_bar$new(format = "Progress [:bar] :percent in :elapsed",
-                                   total = iteration, clear = FALSE, width = 70)
+  if(progress){
+    pb <- progress::progress_bar$new(format = "Progress [:bar] :percent in :elapsed",
+                                     total = iteration, clear = FALSE, width = 70)
+  }
   message(sprintf("Initiating %s-fold cross-validation...", k))
   for(i in seq_along(grid[,1])){
     modauc <- c()
@@ -55,7 +58,9 @@ tune_ranger <- function(data,
     evalmodel$mtry[i] <- grid$mtry[i]
     evalmodel$aucme[i] <- mean(modauc)
     # evalmodel$aucse[i] <- sd(modauc) / sqrt(5)
-    pb$tick()
+    if(progress){
+      pb$tick()
+    }
   }
   bestparam <- which.max(evalmodel$aucme)
   message("Fitting the final model with:")

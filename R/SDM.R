@@ -421,11 +421,13 @@ rf_shallow_tuned <- tune_ranger(data = training,
 bios_globe <- terra::aggregate(bios, fact = 10) %>% 
   terra::mask(worldmap)
 plot(bios_globe)
+plot(bios_globe[[17:nlyr(bios_globe)]])
 
 pca_globe <- predict(bios_globe, pca_model)
 plot(pca_globe)
 # plot(pca_globe[[17:nlyr(pca_globe)]])
 predictors_globe <- raster::stack(pca_globe)[[covars]]
+plot(predictors_globe)
 
 # predict on rasters
 tmp <- Sys.time()
@@ -515,6 +517,12 @@ rasterVis::gplot(ens_glob_proj) +
   coord_sf(crs = robproj) +
   theme_minimal() +
   labs(x = NULL, y = NULL, fill = "Suitability")
+
+ggsave("results/global_map.jpg", 
+       width = 2800,
+       height = 2000, 
+       units = "px",
+       dpi = 300)
 
 # Australian map ----------------------------------------------------------
 # aggregate and crop to Australia
@@ -617,6 +625,12 @@ rasterVis::gplot(ens_au_proj) +
   coord_sf(crs = 3112) +
   theme_minimal() +
   labs(x = NULL, y = NULL, fill = "Suitability")
+
+ggsave("results/australia_map.jpg", 
+       width = 2000,
+       height = 1500, 
+       units = "px",
+       dpi = 300)
 
 # writeRaster(pred_au5k_brt, "results/pred_au5k_brt.tif", overwrite = TRUE)
 # writeRaster(pred_au5k_glm, "Results/pred_au5k_glm.tif", overwrite = TRUE)
