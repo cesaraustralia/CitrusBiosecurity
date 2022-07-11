@@ -132,12 +132,12 @@ flist <- c(
   "CHELSA_cmi_mean_1981-2010_V.2.1.tif",
   "CHELSA_gdd0_1981-2010_V.2.1.tif",
   "CHELSA_gdd10_1981-2010_V.2.1.tif",
-  "CHELSA_gsl_1981-2010_V.2.1.tif",
+  # "CHELSA_gsl_1981-2010_V.2.1.tif",
   "CHELSA_hurs_mean_1981-2010_V.2.1.tif",
   "CHELSA_ngd0_1981-2010_V.2.1.tif",
   "CHELSA_ngd10_1981-2010_V.2.1.tif",
-  "CHELSA_npp_1981-2010_V.2.1.tif",
-  "CHELSA_vpd_mean_1981-2010_V.2.1.tif"
+  "CHELSA_vpd_mean_1981-2010_V.2.1.tif",
+  "CHELSA_npp_1981-2010_V.2.1.tif"
 )
 
 bios <- rast(paste0(fdir, flist))
@@ -213,65 +213,13 @@ train_data <- bind_rows(bio_pr, bio_bg) %>%
   dplyr::select(-ID)
 names(train_data)
 
-# covars <- c(
-#   # "bio1",
-#   # "bio2",
-#   "bio3",
-#   # "bio4",
-#   "bio5",
-#   # "bio6",
-#   # "bio7",
-#   "bio8",
-#   # "bio10",
-#   # "bio11",
-#   # "bio12",
-#   # "bio14",
-#   "bio15",
-#   # "bio17",
-#   # "bio18",
-#   # "cmi",
-#   # "gdd0",
-#   # "gdd10"
-#   # "gsl"
-#   # "npp"
-#   "hurs"
-#   # "vpd"
-#   # "ngd0"
-#   # "ngd10"
-# )
-# 
-# usdm::vifstep(x = as.data.frame(train_data[, covars]), th = 10)
-# 
-# train_data[, covars] %>%
-#   # dplyr::select(-occ) %>%
-#   sample_n(5000) %>%
-#   PerformanceAnalytics::chart.Correlation(method = "pearson")
 
-# # covars <- paste0("pc", 1:5)
-# 
-# training <- train_data[, c("occ", covars)] %>% 
-#   # mutate(
-#   #   # bio18 = log(bio18 + 1),
-#   #   # bio14 = log(bio14 + 1),
-#   #   bio12 = log(bio12 + 1)
-#   # ) %>%
-#   as.data.frame()
-# head(training)
-# 
-# training %>%
-#   dplyr::select(-occ) %>%
-#   usdm::vifstep(th = 5)
-# 
-# training %>%
-#   dplyr::select(-occ) %>%
-#   sample_n(5000) %>%
-#   PerformanceAnalytics::chart.Correlation(method = "pearson")
 
 pcs <- seq_len(11)[-c(5,6,8)]
 covars <- paste0("PC", pcs)
 covars
 
-training <- predict(pca_model, train_data[,-1]) %>% 
+training <- predict(pca_model, train_data[,-1]) %>% # predict the PCs
   as.data.frame() %>% 
   dplyr::select(all_of(covars)) %>% 
   mutate(occ = train_data$occ) %>% 
@@ -386,21 +334,23 @@ maxmod <- dismo::maxent(x = training[, covars],
                                  # "nolinear", "noquadratic", "noproduct", # H
                                  # "noproduct", "nohinge", # LQ
                                  # "noproduct", # LQH
+                                 # "replicates=10",
+                                 "responsecurves=true",
                                  "betamultiplier=2"))
 
 
-predictors_au <- raster::stack(pca_au)[[covars]]
-names(predictors_au)
-# plot(pca_au)
-
-pred_au5k_max <- raster::predict(
-  object = predictors_au,
-  model = maxmod,
-  progress = "text",
-  type = c("cloglog")
-)
-names(pred_au5k_max) <- "Maxent"
-plot(pred_au5k_max, zlim = c(0,1))
+# predictors_au <- raster::stack(pca_au)[[covars]]
+# names(predictors_au)
+# # plot(pca_au)
+# 
+# pred_au5k_max <- raster::predict(
+#   object = predictors_au,
+#   model = maxmod,
+#   progress = "text",
+#   type = c("cloglog")
+# )
+# names(pred_au5k_max) <- "Maxent"
+# plot(pred_au5k_max, zlim = c(0,1))
 
 
 #
