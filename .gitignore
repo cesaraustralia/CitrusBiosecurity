@@ -3,5 +3,6 @@
 .RData
 .Ruserdata
 data/
-results/
+figures/
 output/
+output_maps/

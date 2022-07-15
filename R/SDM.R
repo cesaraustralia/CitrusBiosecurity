@@ -489,7 +489,8 @@ ggsave("results/global_map.jpg",
 bios_au <- bios %>% 
   terra::crop(worldmap[worldmap$GID_0 == "AUS"]) %>% 
   terra::mask(worldmap[worldmap$GID_0 == "AUS"]) %>% 
-  terra::aggregate(fact = 5)
+  # terra::aggregate(fact = 5) %>% 
+  identity()
 
 
 # predictors_au <- bios_au
@@ -497,6 +498,14 @@ pca_au <- predict(bios_au, pca_model)
 plot(pca_au)
 # plot(pca_au[[17:nlyr(pca_au)]])
 predictors_au <- raster::stack(pca_au)[[covars]]
+
+
+# uplaod saved model object
+brt <- readRDS("models/brt.rds")
+gm <- readRDS("models/gam.rds")
+lasso_cv <- readRDS("models/glm.rds")
+maxmod <- readRDS("models/max.rds")
+rf_shallow_tuned <- readRDS("models/rfs.rds")
 
 # predict on rasters
 pred_au5k_brt <- raster::predict(
