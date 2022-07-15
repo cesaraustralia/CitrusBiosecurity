@@ -132,7 +132,7 @@ flist <- c(
   "CHELSA_cmi_mean_1981-2010_V.2.1.tif",
   "CHELSA_gdd0_1981-2010_V.2.1.tif",
   "CHELSA_gdd10_1981-2010_V.2.1.tif",
-  # "CHELSA_gsl_1981-2010_V.2.1.tif",
+  "CHELSA_gsl_1981-2010_V.2.1.tif",
   "CHELSA_hurs_mean_1981-2010_V.2.1.tif",
   "CHELSA_ngd0_1981-2010_V.2.1.tif",
   "CHELSA_ngd10_1981-2010_V.2.1.tif",
@@ -254,6 +254,9 @@ brt <- gbm.step(data = training,
                 site.weights = wt,
                 silent = FALSE)
 
+
+saveRDS(brt, "models/brt.rds")
+
 # dismo::gbm.interactions(brt)$rank.list
 
 # plot all three interaction levels
@@ -296,6 +299,10 @@ lasso_cv <- cv.glmnet(x = training_sparse,
                       nfolds = 10) # number of folds for cross-validation
 plot(lasso_cv)
 
+
+saveRDS(lasso_cv, "models/glm.rds")
+
+
 #
 # # GAM ---------------------------------------------------------------------
 library(mgcv)
@@ -319,7 +326,9 @@ gm <- mgcv::gam(formula = as.formula(form),
 
 # check the appropriateness of Ks
 # gam.check(gm)
-plot(gm, pages = 1, rug = TRUE, shade = TRUE)
+# plot(gm, pages = 1, rug = TRUE, shade = TRUE)
+
+saveRDS(gm, "models/gam.rds")
 
 #
 # # Maxent ------------------------------------------------------------------
@@ -352,6 +361,8 @@ maxmod <- dismo::maxent(x = training[, covars],
 # names(pred_au5k_max) <- "Maxent"
 # plot(pred_au5k_max, zlim = c(0,1))
 
+saveRDS(maxmod, "models/max.rds")
+
 
 #
 # RF - ranger -------------------------------------------------------------
@@ -365,6 +376,9 @@ rf_shallow_tuned <- tune_ranger(data = training,
                                 splitrule = c("hellinger", 'gini'),
                                 num.trees = c(1000),
                                 threads = 8)
+
+
+saveRDS(rf_shallow_tuned, "models/rfs.rds")
 
 
 #
@@ -500,7 +514,7 @@ plot(pca_au)
 predictors_au <- raster::stack(pca_au)[[covars]]
 
 
-# uplaod saved model object
+# upload saved model object
 brt <- readRDS("models/brt.rds")
 gm <- readRDS("models/gam.rds")
 lasso_cv <- readRDS("models/glm.rds")
@@ -601,12 +615,12 @@ ggsave("results/australia_map.jpg",
        units = "px",
        dpi = 300)
 
-# writeRaster(pred_au5k_brt, "results/pred_au5k_brt.tif", overwrite = TRUE)
-# writeRaster(pred_au5k_glm, "Results/pred_au5k_glm.tif", overwrite = TRUE)
-# writeRaster(pred_au5k_gam, "Results/pred_au5k_gam.tif", overwrite = TRUE)
-# writeRaster(pred_au5k_max, "Results/pred_au5k_max.tif", overwrite = TRUE)
-# writeRaster(pred_au5k_rf, "Results/pred_au5k_rf.tif", overwrite = TRUE)
-# writeRaster(pred_au5k_ens, "Results/pred_au5k_ens.tif", overwrite = TRUE)
+writeRaster(pred_au5k_brt, "results/pred_au5k_brt.tif", overwrite = TRUE)
+writeRaster(pred_au5k_glm, "Results/pred_au5k_glm.tif", overwrite = TRUE)
+writeRaster(pred_au5k_gam, "Results/pred_au5k_gam.tif", overwrite = TRUE)
+writeRaster(pred_au5k_max, "Results/pred_au5k_max.tif", overwrite = TRUE)
+writeRaster(pred_au5k_rf, "Results/pred_au5k_rf.tif", overwrite = TRUE)
+writeRaster(pred_au5k_ens, "Results/pred_au5k_ens.tif", overwrite = TRUE)
 
 
 sd_au5k_ens <- terra::app(all_pred_au5k, fun = "sd")
