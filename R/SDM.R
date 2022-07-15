@@ -553,8 +553,6 @@ pred_au5k_gam <- raster::predict(
 names(pred_au5k_gam) <- "GAM"
 plot(pred_au5k_gam, zlim = c(0,1))
 
-
-
 pred_au5k_max <- raster::predict(
   object = predictors_au,
   model = maxmod,
@@ -615,12 +613,13 @@ ggsave("results/australia_map.jpg",
        units = "px",
        dpi = 300)
 
-writeRaster(pred_au5k_brt, "results/pred_au5k_brt.tif", overwrite = TRUE)
-writeRaster(pred_au5k_glm, "Results/pred_au5k_glm.tif", overwrite = TRUE)
-writeRaster(pred_au5k_gam, "Results/pred_au5k_gam.tif", overwrite = TRUE)
-writeRaster(pred_au5k_max, "Results/pred_au5k_max.tif", overwrite = TRUE)
-writeRaster(pred_au5k_rf, "Results/pred_au5k_rf.tif", overwrite = TRUE)
-writeRaster(pred_au5k_ens, "Results/pred_au5k_ens.tif", overwrite = TRUE)
+writeRaster(pred_au5k_brt, "output_maps/pred_au1k_brt.tif", overwrite = TRUE)
+writeRaster(pred_au5k_gam, "output_maps/pred_au1k_gam.tif", overwrite = TRUE)
+writeRaster(pred_au5k_glm, "output_maps/pred_au1k_glm.tif", overwrite = TRUE)
+writeRaster(pred_au5k_max, "output_maps/pred_au1k_max.tif", overwrite = TRUE)
+writeRaster(pred_au5k_rf, "output_maps/pred_au1k_rfs.tif", overwrite = TRUE)
+
+writeRaster(pred_au5k_ens, "output_maps/pred_au1k_ens.tif", overwrite = TRUE)
 
 
 sd_au5k_ens <- terra::app(all_pred_au5k, fun = "sd")
