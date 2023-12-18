@@ -2,7 +2,7 @@ library(tidyverse)
 library(shiny)
 library(shinythemes)
 library(leaflet)
-library(sf)
+library(mapview)
 
 # render mapview doesn't work; this function works
 myRenderMapview <- function(expr, env = parent.frame(), quoted = FALSE){
@@ -13,9 +13,9 @@ myRenderMapview <- function(expr, env = parent.frame(), quoted = FALSE){
 }
 
 # read layer
-aus_SA2 <- read_sf("shiny-resources/aus_SA2.gpkg") %>%
+aus_SA2 <- sf::st_read("shiny-resources/aus_SA2.gpkg") %>%
   select(SA2_CODE21, SA2_NAME21, Region, State, `Incursion risk`, `Climatic suitability`, `Establishment likelihood`, `Tourist pathway`, `Returning resident pathway`, `Visiting friends & family pathway`, `Sea cargo pathway`, `Natural dispersal pathway`, `Budwood pathway`)
-roads <- read_sf("shiny-resources/roads.gpkg")
+roads <- sf::st_read("shiny-resources/roads.gpkg")
 
 # layers
 all_layers <- c("Incursion risk", "Climatic suitability", "Establishment likelihood", "Tourist pathway", "Returning resident pathway", "Visiting friends & family pathway", "Sea cargo pathway", "Natural dispersal pathway", "Budwood pathway")
