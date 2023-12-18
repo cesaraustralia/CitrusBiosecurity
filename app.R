@@ -13,22 +13,22 @@ myRenderMapview <- function(expr, env = parent.frame(), quoted = FALSE){
 }
 
 # read layer
-aus_SA2 <- sf::st_read("shiny-resources/aus_SA2.gpkg") %>%
-  select(SA2_CODE21, SA2_NAME21, Region, State, `Incursion risk`, `Climatic suitability`, `Establishment likelihood`, `Tourist pathway`, `Returning resident pathway`, `Visiting friends & family pathway`, `Sea cargo pathway`, `Natural dispersal pathway`, `Budwood pathway`)
-roads <- sf::st_read("shiny-resources/roads.gpkg")
+aus_SA2 <- sf::read_sf("shiny-resources/aus_SA2.gpkg") %>%
+  dplyr::select(SA2_CODE21, SA2_NAME21, Region, State, `Incursion risk`, `Climatic suitability`, `Establishment likelihood`, `Tourist pathway`, `Returning resident pathway`, `Visiting friends & family pathway`, `Sea cargo pathway`, `Natural dispersal pathway`, `Budwood pathway`)
+roads <- sf::read_sf("shiny-resources/roads.gpkg")
 
 # layers
 all_layers <- c("Incursion risk", "Climatic suitability", "Establishment likelihood", "Tourist pathway", "Returning resident pathway", "Visiting friends & family pathway", "Sea cargo pathway", "Natural dispersal pathway", "Budwood pathway")
 
 data <-
   aus_SA2 %>%
-  as_tibble() %>%
-  select(-geom)
+  tibble::as_tibble() %>%
+  dplyr::select(-geom)
 
 org_counts <-
   data %>%
-  count(State) %>%
-  pull(n)
+  dplyr::count(State) %>%
+  dplyr::pull(n)
 
 names(org_counts) <- sort(unique(data$State))
 
@@ -95,7 +95,7 @@ server <- function(input, output, session){
   map <- reactive({
     mapview(map.types = "Esri.WorldStreetMap", roads, layer.name = "Roads", legend = FALSE, label = roads$name, hide = TRUE) +
       aus_SA2 %>%
-      filter(.data[[input$select_map]] >= quantile(.data[[input$select_map]], .env$input$select_quant_map)) %>%
+      dplyr::filter(.data[[input$select_map]] >= quantile(.data[[input$select_map]], .env$input$select_quant_map)) %>%
       mapview(layer.name = input$select_map,
               zcol = input$select_map,
               label = aus_SA2$SA2_NAME21,
@@ -111,13 +111,13 @@ server <- function(input, output, session){
   
   tab <- reactive({
     data <- data %>%
-      group_by(State) %>%
-      filter(.data[[input$select_filt]] >= quantile(.data[[input$select_filt]], .env$input$select_quant_dt)) %>%
-      arrange(State, desc(.data[[input$select_filt]]))
+      dplyr::group_by(State) %>%
+      dplyr::filter(.data[[input$select_filt]] >= quantile(.data[[input$select_filt]], .env$input$select_quant_dt)) %>%
+      dplyr::arrange(State, dplyr::desc(.data[[input$select_filt]]))
     
     counts <- data %>%
-      count(State) %>%
-      pull(n)
+      dplyr::count(State) %>%
+      dplyr::pull(n)
     
     names(counts) <- sort(unique(data$State))
     
