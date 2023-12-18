@@ -6,3 +6,10 @@ data/
 figures/
 output/
 output_maps/
+models/
+results/
+ports/
+establishment_map.html
+pests_map.html
+top_establishment_map.html
+top_pests_map.html

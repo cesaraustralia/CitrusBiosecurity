@@ -12,7 +12,7 @@ library(sf)
 # test a species
 source("R/published_data.R")
 # dir to the bioclim data
-fdir <- "C:/Users/61423/Climate_data/CHELSA_1981_2010/bio/"
+fdir <- "C:/Users/Alex/Documents/GIS/CHELSA_1981_2010/bio/"
 
 gbif_data <- geodata::sp_occurrence(genus = "Diaphorina",
                                     species = "citri")
@@ -47,7 +47,7 @@ dup <- cellFromXY(dpmask, st_coordinates(sp_points)) %>%
   duplicated()
 occ <- sp_points[!dup, ]
 
-elev <- rast("C:/Users/61423/Climate_data/Elevation_30s_worldclim/wc2.1_30s_elev.tif") %>% 
+elev <- rast("C:/Users/Alex/Documents/GIS/Worldclim_2.1/wc2.1_30s_elev.tif") %>% 
   setNames("elevation")
 plot(elev)
 plot(occ, add = TRUE, col = 'red')
@@ -173,12 +173,12 @@ factoextra::fviz_pca_var(
 # read a raster mask for the region
 bgmask <- terra::rast("data/mask.tif")
 
-# kde_mask <- terra::rast("data/kde_mask.tif") %>% 
-#   # terra::app(function(x) sqrt(x + 0.01)) %>% 
-#   terra::mask(bgmask) %>%
-#   terra::aggregate(fact = 5) %>%  # reduce the size to fit in memory
-#   setNames("kde")
-# 
+kde_mask <- terra::rast("data/kde_mask.tif") %>%
+  # terra::app(function(x) sqrt(x + 0.01)) %>%
+  terra::mask(bgmask) %>%
+  terra::aggregate(fact = 5) %>%  # reduce the size to fit in memory
+  setNames("kde")
+
 # # generate 10k random samples from the KDE raster file
 # bgs <- terra::spatSample(x = kde_mask,
 #                          size = 1e4,
@@ -187,7 +187,7 @@ bgmask <- terra::rast("data/mask.tif")
 #                          xy = TRUE,
 #                          values = FALSE,
 #                          na.rm = TRUE)
-
+# 
 # rasterVis::gplot(kde_mask) +
 #   geom_tile(aes(fill = value)) +
 #   scale_fill_gradientn(colours = terrain.colors(30, rev = TRUE), na.value = NA) +
@@ -237,25 +237,26 @@ library(dismo)
 library(gbm)
 
 # weighting
-prNum <- as.numeric(table(training$occ)["1"]) # number of presences
-bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
-wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
-
-brt <- gbm.step(data = training,
-                gbm.x = which(!names(training) %in% "occ"),
-                gbm.y = 1,
-                family = "bernoulli",
-                tree.complexity = 3,
-                learning.rate = 0.01,
-                bag.fraction = 0.75,
-                max.trees = 10000,
-                n.trees = 50,
-                n.folds = 5,
-                site.weights = wt,
-                silent = FALSE)
-
-
-saveRDS(brt, "models/brt.rds")
+# prNum <- as.numeric(table(training$occ)["1"]) # number of presences
+# bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
+# wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
+# 
+# brt <- gbm.step(data = training,
+#                 gbm.x = which(!names(training) %in% "occ"),
+#                 gbm.y = 1,
+#                 family = "bernoulli",
+#                 tree.complexity = 3,
+#                 learning.rate = 0.01,
+#                 bag.fraction = 0.75,
+#                 max.trees = 10000,
+#                 n.trees = 50,
+#                 n.folds = 5,
+#                 site.weights = wt,
+#                 silent = FALSE)
+# 
+# 
+# saveRDS(brt, "models/brt.rds")
+brt <- readRDS("models/brt.rds")
 
 # dismo::gbm.interactions(brt)$rank.list
 
@@ -280,28 +281,28 @@ library(myspatial)
 
 
 quad_obj <- make_quadratic(training, cols = covars)
-training_quad <- predict(quad_obj, newdata = training)
-quad_obj
-
-new_vars <- names(training_quad)[names(training_quad) != "occ"]
-training_sparse <- sparse.model.matrix(~. -1, training_quad[, new_vars])
-
-# calculating the case weights
-prNum <- as.numeric(table(training_quad$occ)["1"]) # number of presences
-bgNum <- as.numeric(table(training_quad$occ)["0"]) # number of backgrounds
-wt <- ifelse(training_quad$occ == 1, 1, prNum / bgNum)
-
-lasso_cv <- cv.glmnet(x = training_sparse,
-                      y = training_quad$occ,
-                      family = "binomial",
-                      alpha = 1, # fitting lasso
-                      weights = wt,
-                      nfolds = 10) # number of folds for cross-validation
-plot(lasso_cv)
-
-
-saveRDS(lasso_cv, "models/glm.rds")
-
+# training_quad <- predict(quad_obj, newdata = training)
+# quad_obj
+# 
+# new_vars <- names(training_quad)[names(training_quad) != "occ"]
+# training_sparse <- sparse.model.matrix(~. -1, training_quad[, new_vars])
+# 
+# # calculating the case weights
+# prNum <- as.numeric(table(training_quad$occ)["1"]) # number of presences
+# bgNum <- as.numeric(table(training_quad$occ)["0"]) # number of backgrounds
+# wt <- ifelse(training_quad$occ == 1, 1, prNum / bgNum)
+# 
+# lasso_cv <- cv.glmnet(x = training_sparse,
+#                       y = training_quad$occ,
+#                       family = "binomial",
+#                       alpha = 1, # fitting lasso
+#                       weights = wt,
+#                       nfolds = 10) # number of folds for cross-validation
+# plot(lasso_cv)
+# 
+# 
+# saveRDS(lasso_cv, "models/glm.rds")
+lasso_cv <- readRDS("models/glm.rds")
 
 #
 # # GAM ---------------------------------------------------------------------
@@ -309,59 +310,61 @@ library(mgcv)
 
 # calculating the case weights (equal weights)
 # the order of weights should be the same as presences and backgrounds in the training data
-prNum <- as.numeric(table(training$occ)["1"]) # number of presences
-bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
-wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
-
-form <- paste("occ ~", 
-  paste(paste0("s(", covars, ", bs  = 'tp', k = ", 5, ")"), collapse = " + ")
-)
-
-gm <- mgcv::gam(formula = as.formula(form),
-                data = training,
-                family = binomial(link = "logit"),
-                # family = binomial(link = "cloglog"),
-                weights = wt,
-                method = "REML")
-
-# check the appropriateness of Ks
-# gam.check(gm)
-# plot(gm, pages = 1, rug = TRUE, shade = TRUE)
-
-saveRDS(gm, "models/gam.rds")
+# prNum <- as.numeric(table(training$occ)["1"]) # number of presences
+# bgNum <- as.numeric(table(training$occ)["0"]) # number of backgrounds
+# wt <- ifelse(training$occ == 1, 1, prNum / bgNum)
+# 
+# form <- paste("occ ~", 
+#   paste(paste0("s(", covars, ", bs  = 'tp', k = ", 5, ")"), collapse = " + ")
+# )
+# 
+# gm <- mgcv::gam(formula = as.formula(form),
+#                 data = training,
+#                 family = binomial(link = "logit"),
+#                 # family = binomial(link = "cloglog"),
+#                 weights = wt,
+#                 method = "REML")
+# 
+# # check the appropriateness of Ks
+# # gam.check(gm)
+# # plot(gm, pages = 1, rug = TRUE, shade = TRUE)
+# 
+# saveRDS(gm, "models/gam.rds")
+gm <- readRDS("models/gam.rds")
 
 #
 # # Maxent ------------------------------------------------------------------
 library(dismo)
 
-maxmod <- dismo::maxent(x = training[, covars],
-                        p = training$occ,
-                        removeDuplicates = FALSE,
-                        path = "output/maxent_files",
-                        args = c("nothreshold", 
-                                 # "noautofeature",
-                                 # "nolinear", "noquadratic", "noproduct", # H
-                                 # "noproduct", "nohinge", # LQ
-                                 # "noproduct", # LQH
-                                 # "replicates=10",
-                                 "responsecurves=true",
-                                 "betamultiplier=2"))
-
-
-# predictors_au <- raster::stack(pca_au)[[covars]]
-# names(predictors_au)
-# # plot(pca_au)
+# maxmod <- dismo::maxent(x = training[, covars],
+#                         p = training$occ,
+#                         removeDuplicates = FALSE,
+#                         path = "output/maxent_files",
+#                         args = c("nothreshold", 
+#                                  # "noautofeature",
+#                                  # "nolinear", "noquadratic", "noproduct", # H
+#                                  # "noproduct", "nohinge", # LQ
+#                                  # "noproduct", # LQH
+#                                  # "replicates=10",
+#                                  "responsecurves=true",
+#                                  "betamultiplier=2"))
 # 
-# pred_au5k_max <- raster::predict(
-#   object = predictors_au,
-#   model = maxmod,
-#   progress = "text",
-#   type = c("cloglog")
-# )
-# names(pred_au5k_max) <- "Maxent"
-# plot(pred_au5k_max, zlim = c(0,1))
-
-saveRDS(maxmod, "models/max.rds")
+# 
+# # predictors_au <- raster::stack(pca_au)[[covars]]
+# # names(predictors_au)
+# # # plot(pca_au)
+# # 
+# # pred_au5k_max <- raster::predict(
+# #   object = predictors_au,
+# #   model = maxmod,
+# #   progress = "text",
+# #   type = c("cloglog")
+# # )
+# # names(pred_au5k_max) <- "Maxent"
+# # plot(pred_au5k_max, zlim = c(0,1))
+# 
+# saveRDS(maxmod, "models/max.rds")
+maxmod <- readRDS("models/max.rds")
 
 
 #
@@ -370,15 +373,16 @@ library(ranger)
 
 source("R/tune_ranger.R")
 
-rf_shallow_tuned <- tune_ranger(data = training,
-                                y = "occ",
-                                max.depth = 2:8,
-                                splitrule = c("hellinger", 'gini'),
-                                num.trees = c(1000),
-                                threads = 8)
-
-
-saveRDS(rf_shallow_tuned, "models/rfs.rds")
+# rf_shallow_tuned <- tune_ranger(data = training,
+#                                 y = "occ",
+#                                 max.depth = 2:8,
+#                                 splitrule = c("hellinger", 'gini'),
+#                                 num.trees = c(1000),
+#                                 threads = 8)
+# 
+# 
+# saveRDS(rf_shallow_tuned, "models/rfs.rds")
+rf_shallow_tuned <- readRDS("models/rfs.rds")
 
 
 #
@@ -497,6 +501,18 @@ ggsave("results/global_map.jpg",
        height = 2000, 
        units = "px",
        dpi = 300)
+
+writeRaster(pred_glob_brt, "output_maps/pred_glob_brt.tif", overwrite = TRUE)
+writeRaster(pred_glob_gam, "output_maps/pred_glob_gam.tif", overwrite = TRUE)
+writeRaster(pred_glob_glm, "output_maps/pred_glob_glm.tif", overwrite = TRUE)
+writeRaster(pred_glob_max, "output_maps/pred_glob_max.tif", overwrite = TRUE)
+writeRaster(pred_glob_rf, "output_maps/pred_glob_rfs.tif", overwrite = TRUE)
+
+writeRaster(pred_glob_ens, "output_maps/pred_glob_ens.tif", overwrite = TRUE)
+
+
+sd_glob_ens <- terra::app(all_pred_glob, fun = "sd")
+plot(sd_glob_ens, col = c("gray", viridis::viridis(30, option = "A", direction = +1)))
 
 # Australian map ----------------------------------------------------------
 # aggregate and crop to Australia
@@ -625,5 +641,163 @@ writeRaster(pred_au5k_ens, "output_maps/pred_au1k_ens.tif", overwrite = TRUE)
 sd_au5k_ens <- terra::app(all_pred_au5k, fun = "sd")
 plot(sd_au5k_ens, col = c("gray", viridis::viridis(30, option = "A", direction = +1)))
 
+
+# Northern countries map ----------------------------------------------------------
+# aggregate and crop to Northern countries (PNG, Indonesia, Timor-Leste)
+bios_north <- bios %>% 
+  terra::crop(worldmap[worldmap$GID_0 %in% c("IDN", "PNG", "TLS")]) %>% 
+  terra::mask(worldmap[worldmap$GID_0 %in% c("IDN", "PNG", "TLS")]) %>% 
+  # terra::aggregate(fact = 5) %>% 
+  identity()
+
+
+# predictors_north <- bios_north
+pca_north <- predict(bios_north, pca_model)
+plot(pca_north)
+# plot(pca_north[[17:nlyr(pca_north)]])
+predictors_north <- raster::stack(pca_north)[[covars]]
+
+
+# upload saved model object
+brt <- readRDS("models/brt.rds")
+gm <- readRDS("models/gam.rds")
+lasso_cv <- readRDS("models/glm.rds")
+maxmod <- readRDS("models/max.rds")
+rf_shallow_tuned <- readRDS("models/rfs.rds")
+
+# predict on rasters
+pred_north5k_brt <- raster::predict(
+  object = predictors_north,
+  model = brt,
+  n.trees = brt$gbm.call$best.trees,
+  progress = "text",
+  type = "response"
+)
+names(pred_north5k_brt) <- "BRT"
+plot(rast(pred_north5k_brt), range = c(0,1), background = "blue")
+
+# predicting glment on rasters with myspatial package
+pred_north5k_glm <- predict_glmnet_raster(
+  r = predictors_north,
+  model = lasso_cv, # the lasso cv object
+  quadraticObj = quad_obj, # make_quadratic object
+  type = "response",
+  # slambda = "lambda.min"
+  slambda = "lambda.1se"
+)
+names(pred_north5k_glm) <- "GLM"
+plot(pred_north5k_glm, zlim = c(0,1))
+
+pred_north5k_gam <- raster::predict(
+  object = predictors_north,
+  model = gm,
+  progress = "text",
+  type = "response"
+)
+names(pred_north5k_gam) <- "GAM"
+plot(pred_north5k_gam, zlim = c(0,1))
+
+pred_north5k_max <- raster::predict(
+  object = predictors_north,
+  model = maxmod,
+  progress = "text",
+  type = c("cloglog")
+)
+names(pred_north5k_max) <- "Maxent"
+plot(pred_north5k_max, zlim = c(0,1))
+
+
+
+# predict to raster layers
+pred_north5k_rf <- raster::predict(
+  object = predictors_north,
+  model = rf_shallow_tuned,
+  progress = "text",
+  fun = function(model, ...) predict(model, ...)$predictions[,"1"]
+)
+names(pred_north5k_rf) <- "RF"
+plot(pred_north5k_rf, zlim = c(0,1))
+
+# stack all raster predictions
+all_pred_north5k <- list(pred_north5k_brt,
+                         pred_north5k_glm, 
+                         pred_north5k_gam,
+                         pred_north5k_max, 
+                         pred_north5k_rf) %>% 
+  lapply(function(x) raster::calc(x, function(y) scales::rescale(y, c(0,1)))) %>% 
+  raster::stack() %>% 
+  terra::rast()
+plot(all_pred_north5k, range = c(0, 1))
+
+pred_north5k_ens <- terra::app(all_pred_north5k, fun = "mean")
+names(pred_north5k_ens) <- "Ensemble"
+plot(pred_north5k_ens, range = c(0, 1))
+
+
+mycols <- terrain.colors(30, rev = TRUE)
+
+ens_north_proj <- terra::project(pred_north5k_ens, robproj)
+
+rasterVis::gplot(ens_north_proj) +
+  geom_tile(aes(fill = value)) +
+  scale_fill_gradientn(colours = mycols, na.value = NA) +
+  # scale_fill_viridis_c(option = "G", direction = -1, na.value = NA) +
+  geom_sf(data = st_as_sf(worldmap[worldmap$GID_0 %in% c("IDN", "PNG", "TLS"), ]),
+          fill = NA, inherit.aes = FALSE) +
+  # geom_sf(data = st_as_sf(cabi_counties), fill = NA, col = "blue", inherit.aes = FALSE) +
+  # scale_x_continuous(limits = c(-50e5, 30e5)) +
+  # scale_y_continuous(limits = c(-2e6, 1e6)) +
+  coord_sf(crs = robproj) +
+  theme_minimal() +
+  labs(x = NULL, y = NULL, fill = "Suitability")
+
+ggsave("figures/north_map.jpg", 
+       width = 2000,
+       height = 1500, 
+       units = "px",
+       dpi = 300)
+
+writeRaster(pred_north5k_brt, "output_maps/pred_north1k_brt.tif", overwrite = TRUE)
+writeRaster(pred_north5k_gam, "output_maps/pred_north1k_gam.tif", overwrite = TRUE)
+writeRaster(pred_north5k_glm, "output_maps/pred_north1k_glm.tif", overwrite = TRUE)
+writeRaster(pred_north5k_max, "output_maps/pred_north1k_max.tif", overwrite = TRUE)
+writeRaster(pred_north5k_rf, "output_maps/pred_north1k_rfs.tif", overwrite = TRUE)
+
+writeRaster(pred_north5k_ens, "output_maps/pred_north1k_ens.tif", overwrite = TRUE)
+
+
+sd_north5k_ens <- terra::app(all_pred_north5k, fun = "sd")
+plot(sd_north5k_ens, col = c("gray", viridis::viridis(30, option = "A", direction = +1)))
+
+
+# generate 200 random points from Northern countries weighted by climatic suitability
+bgs_north <- enmSdm::sampleRast(pred_north5k_ens, 200, adjArea = T, replace = F, prob = TRUE)
+
+rasterVis::gplot(pred_north5k_ens) +
+  geom_tile(aes(fill = value)) +
+  scale_fill_gradientn(colours = terrain.colors(30, rev = TRUE), na.value = NA) +
+  geom_point(data = as.data.frame(bgs_north), aes(x = x, y = y), colour = "red", alpha = 0.4) +
+  theme_void() +
+  coord_sf(crs = 3112)
+
+rasterVis::gplot(terra::project(pred_north5k_ens, "epsg:3112")) +
+  geom_tile(aes(fill = value)) +
+  scale_fill_gradientn(colours = mycols, na.value = NA) +
+  geom_sf(data = st_as_sf(worldmap) %>% st_transform(crs = 3112),
+          fill = NA, inherit.aes = FALSE) +
+  geom_point(data = as_tibble(bgs_north) %>% st_as_sf(coords = c("x", "y"), crs = crs(pred_north5k_ens)) %>% st_transform(crs = 3112) %>% st_coordinates() %>% as.data.frame(), aes(x = X, y = Y), colour = "red", alpha = 0.4) +
+  theme_minimal() +
+  coord_sf(crs = 3112) +
+  scale_x_continuous(limits = c(-4885916, 2797124)) +
+  scale_y_continuous(limits = c(-2022118, 704695)) +
+  labs(x = NULL, y = NULL, fill = "Suitability")
+
+ggsave("figures/north_map_bgs.jpg", 
+       width = 2000,
+       height = 1500, 
+       units = "px",
+       dpi = 300)
+
+saveRDS(bgs_north, "data/bgs_north.rds")
 
 # the end -----------------------------------------------------------------
